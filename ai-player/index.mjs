@@ -13,7 +13,7 @@ const AI_KEY = process.env.AI_API_KEY || "";
 const AI_MODEL = process.env.AI_MODEL || "deepseek-chat";
 
 const SYSTEM = `你是 MC AI ${USER}。只输出 JSON：{"say":"≤40字","action":"chat|come|follow|stop|look|jump|inv|build"}
-build=在玩家旁边盖小房`;
+只有玩家明确说跟着/跟我时才用 follow。说停、别跟、站住用 stop。说建房用 build。不要自作主张 follow。`;
 
 const BLOCK_OK = /planks|wood|log|cobble|dirt|stone|brick|wool|glass/;
 
@@ -29,17 +29,13 @@ function chat(text) {
   try { bot.chat(String(text).slice(0, 40)); } catch (e) {}
 }
 
-function named(msg) {
-  return new RegExp(USER, "i").test(msg);
-}
-
 function parseIntent(message) {
   const m = String(message || "");
-  if (/停下|停止|别跟|别走|stop/i.test(m)) return "stop";
-  if (/跟着|跟我|follow/i.test(m)) return "follow";
-  if (/过来|来这|来我这|come/i.test(m)) return "come";
+  if (/停下|停止|停一停|站住|别跟|不要跟|别走|stop/i.test(m)) return "stop";
+  if (/跟着我|跟我|一直跟|follow/i.test(m)) return "follow";
+  if (/过来|回来|来这|来我这|到我身边|come/i.test(m)) return "come";
   if (/看我|看这|look/i.test(m)) return "look";
-  if (/跳/i.test(m) && !/跳过/.test(m)) return "jump";
+  if (/跳一下|跳起来/.test(m) || (/^跳$/.test(m.trim()))) return "jump";
   if (/背包|你有什么/i.test(m)) return "inv";
   if (/建房|盖房|建个房|建屋|建房子|build/i.test(m)) return "build";
   return null;
@@ -47,6 +43,19 @@ function parseIntent(message) {
 
 function playerEnt(name) {
   return bot.players[name]?.entity || null;
+}
+
+function nearestPlayer() {
+  let best = null;
+  let bestD = 1e9;
+  for (const n of Object.keys(bot.players)) {
+    if (n === bot.username) continue;
+    const e = bot.players[n]?.entity;
+    if (!e) continue;
+    const d = bot.entity.position.distanceTo(e.position);
+    if (d < bestD) { bestD = d; best = n; }
+  }
+  return best;
 }
 
 function setupMove() {
@@ -63,11 +72,18 @@ function walkTo(playerName, follow) {
   following = follow ? playerName : null;
   setupMove();
   bot.pathfinder.setGoal(new goals.GoalFollow(p, follow ? 2.5 : 1.8), follow);
+  if (!follow) {
+    setTimeout(() => {
+      if (!following) bot.pathfinder.setGoal(null);
+    }, 8000);
+  }
 }
 
 function stopWalk() {
   following = null;
-  bot.pathfinder.setGoal(null);
+  building = false;
+  try { bot.pathfinder.setGoal(null); } catch (e) {}
+  bot.clearControlStates();
 }
 
 function lookAt(name) {
@@ -139,6 +155,7 @@ async function placeAt(pos) {
 
 async function buildHouse(username) {
   if (building) { chat("正在盖"); return; }
+  stopWalk();
   const p = playerEnt(username);
   if (!p) { chat("找不到你"); return; }
   if (countBlocks() < 28) {
@@ -146,7 +163,6 @@ async function buildHouse(username) {
     return;
   }
   building = true;
-  following = null;
   const origin = p.position.offset(3, 0, 3).floored();
   origin.y = Math.floor(p.position.y);
   chat("开始盖房");
@@ -172,13 +188,19 @@ async function buildHouse(username) {
 }
 
 function doAction(action, username) {
-  if (action === "come") walkTo(username, false);
-  else if (action === "follow") walkTo(username, true);
-  else if (action === "stop") { building = false; stopWalk(); }
-  else if (action === "look") lookAt(username);
+  const who = playerEnt(username) ? username : nearestPlayer();
+  if (!who && action !== "stop" && action !== "jump" && action !== "inv") {
+    chat("找不到玩家");
+    return;
+  }
+  if (action !== "follow") stopWalk();
+  if (action === "come") walkTo(who, false);
+  else if (action === "follow") walkTo(who, true);
+  else if (action === "stop") { chat("停了"); }
+  else if (action === "look") lookAt(who);
   else if (action === "jump") jumpOnce();
   else if (action === "inv") invSay();
-  else if (action === "build") buildHouse(username).catch(() => {});
+  else if (action === "build") buildHouse(who).catch(() => {});
 }
 
 async function think(username, message) {
@@ -194,7 +216,7 @@ async function think(username, message) {
       },
       body: JSON.stringify({
         model: AI_MODEL,
-        temperature: 0.2,
+        temperature: 0.1,
         max_tokens: 80,
         messages: [
           { role: "system", content: SYSTEM },
@@ -220,17 +242,14 @@ async function handle(username, message) {
   if (mem.length > 8) mem.shift();
 
   const intent = parseIntent(message);
-  const talkToMe = named(message) || intent;
-  if (!talkToMe) return;
-
   if (intent) {
     doAction(intent, username);
-    const quick = { come: "来了", follow: "跟你", stop: "停了", look: "在看", jump: "跳", build: "" };
+    const quick = { come: "来了", follow: "跟你", look: "在看", jump: "跳" };
     if (quick[intent]) chat(quick[intent]);
+    return;
   }
 
   if (!AI_KEY) return;
-  if (intent && !named(message)) return;
   const now = Date.now();
   if (pendingAi || now - lastAi < 2500) return;
   pendingAi = true;
@@ -238,8 +257,10 @@ async function handle(username, message) {
   try {
     const out = await think(username, message);
     if (!out) return;
-    if (out.say && !intent) chat(out.say);
-    if (!intent && out.action && out.action !== "chat") doAction(out.action, username);
+    if (out.say) chat(out.say);
+    if (out.action && out.action !== "chat" && out.action !== "follow") {
+      doAction(out.action, username);
+    }
   } finally {
     pendingAi = false;
   }
@@ -259,8 +280,8 @@ bot.loadPlugin(pathfinder);
 
 bot.once("spawn", () => {
   console.log("AI online", USER, HOST + ":" + PORT);
-  startChatRelay(bot);
-  chat("在，可说建房");
+  startChatRelay(bot, handle);
+  chat("在。说停、过来、建房");
 });
 
 bot.on("chat", (username, message) => {
