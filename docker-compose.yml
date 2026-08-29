@@ -1,0 +1,19 @@
+services:
+  eaglercraft:
+    image: ghcr.io/yangchuansheng/eaglerx1.8server:${IMAGE_TAG:-2.2.3}
+    container_name: ${CONTAINER_NAME:-eaglercraft}
+    restart: unless-stopped
+    ports:
+      - "${GAME_PORT:-5200}:5200"
+      - "${ADMIN_PORT:-5201}:5201"
+    volumes:
+      - ${DATA_DIR:-./data}:/eaglerX-1.8-server
+    environment:
+      MINECRAFT_VERSION: ${MINECRAFT_VERSION:-1.12}
+      RCON_PASSWORD: ${RCON_PASSWORD:?Set RCON_PASSWORD in .env before starting}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5200/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
