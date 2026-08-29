@@ -2,6 +2,7 @@ import mineflayer from "mineflayer";
 import pkg from "mineflayer-pathfinder";
 import { Vec3 } from "vec3";
 import { startChatRelay } from "./chat-relay.mjs";
+import { setHolo, tickHolo, spawnHolo } from "./holo.mjs";
 const { pathfinder, Movements, goals } = pkg;
 
 const HOST = process.env.MC_HOST || "127.0.0.1";
@@ -12,8 +13,7 @@ const AI_BASE = (process.env.AI_BASE_URL || "https://api.deepseek.com/v1").repla
 const AI_KEY = process.env.AI_API_KEY || "";
 const AI_MODEL = process.env.AI_MODEL || "deepseek-chat";
 
-const SYSTEM = `你是 MC AI ${USER}。只输出 JSON：{"say":"≤40字","action":"chat|come|follow|stop|look|jump|inv|build"}
-只有玩家明确说跟着/跟我时才用 follow。说停、别跟、站住用 stop。说建房用 build。不要自作主张 follow。`;
+const SYSTEM = `你是 MC AI ${USER}。只输出 JSON：{"say":"≤40字","action":"chat|come|follow|stop|look|jump|inv|build"}`;
 
 const BLOCK_OK = /planks|wood|log|cobble|dirt|stone|brick|wool|glass/;
 
@@ -70,11 +70,15 @@ function walkTo(playerName, follow) {
   const d = bot.entity.position.distanceTo(p.position);
   if (d > 72) { chat("太远了"); return; }
   following = follow ? playerName : null;
+  setHolo(follow ? "跟随中" : "过来");
   setupMove();
   bot.pathfinder.setGoal(new goals.GoalFollow(p, follow ? 2.5 : 1.8), follow);
   if (!follow) {
     setTimeout(() => {
-      if (!following) bot.pathfinder.setGoal(null);
+      if (!following) {
+        bot.pathfinder.setGoal(null);
+        setHolo("空闲");
+      }
     }, 8000);
   }
 }
@@ -82,6 +86,7 @@ function walkTo(playerName, follow) {
 function stopWalk() {
   following = null;
   building = false;
+  setHolo("空闲");
   try { bot.pathfinder.setGoal(null); } catch (e) {}
   bot.clearControlStates();
 }
@@ -163,6 +168,7 @@ async function buildHouse(username) {
     return;
   }
   building = true;
+  setHolo("盖房中");
   const origin = p.position.offset(3, 0, 3).floored();
   origin.y = Math.floor(p.position.y);
   chat("开始盖房");
@@ -183,6 +189,7 @@ async function buildHouse(username) {
     console.error("build", e.message || e);
   } finally {
     building = false;
+    setHolo("空闲");
     bot.pathfinder.setGoal(null);
   }
 }
@@ -281,6 +288,8 @@ bot.loadPlugin(pathfinder);
 bot.once("spawn", () => {
   console.log("AI online", USER, HOST + ":" + PORT);
   startChatRelay(bot, handle);
+  setHolo("空闲");
+  spawnHolo(bot);
   chat("在。说停、过来、建房");
 });
 
@@ -289,6 +298,7 @@ bot.on("chat", (username, message) => {
 });
 
 bot.on("physicTick", () => {
+  tickHolo(bot);
   if (!following) return;
   const p = playerEnt(following);
   if (!p) return;
