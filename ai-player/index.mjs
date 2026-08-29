@@ -1,6 +1,7 @@
 import mineflayer from "mineflayer";
 import pkg from "mineflayer-pathfinder";
 import { Vec3 } from "vec3";
+import { startChatRelay } from "./chat-relay.mjs";
 const { pathfinder, Movements, goals } = pkg;
 
 const HOST = process.env.MC_HOST || "127.0.0.1";
@@ -124,10 +125,7 @@ async function placeAt(pos) {
   const item = pickBlock();
   if (!item) return false;
   try { await bot.equip(item, "hand"); } catch (e) { return false; }
-
-  const faces = [
-    [0, -1, 0], [0, 1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]
-  ];
+  const faces = [[0, -1, 0], [0, 1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]];
   for (const [fx, fy, fz] of faces) {
     const ref = bot.blockAt(pos.offset(fx, fy, fz));
     if (!ref || ref.name === "air" || ref.boundingBox === "empty") continue;
@@ -261,6 +259,7 @@ bot.loadPlugin(pathfinder);
 
 bot.once("spawn", () => {
   console.log("AI online", USER, HOST + ":" + PORT);
+  startChatRelay(bot);
   chat("在，可说建房");
 });
 
