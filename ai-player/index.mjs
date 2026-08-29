@@ -1,5 +1,6 @@
 import mineflayer from "mineflayer";
 import pkg from "mineflayer-pathfinder";
+import { Vec3 } from "vec3";
 const { pathfinder, Movements, goals } = pkg;
 
 const HOST = process.env.MC_HOST || "127.0.0.1";
@@ -10,11 +11,15 @@ const AI_BASE = (process.env.AI_BASE_URL || "https://api.deepseek.com/v1").repla
 const AI_KEY = process.env.AI_API_KEY || "";
 const AI_MODEL = process.env.AI_MODEL || "deepseek-chat";
 
-const SYSTEM = `\u4f60\u662f MC AI ${USER}\u3002\u53ea\u8f93\u51fa JSON\uff1a{"say":"\u226440\u5b57","action":"chat|come|follow|stop|look|jump|inv"}\ncome=\u8d70\u5230\u5bf9\u65b9 follow=\u8ddf\u968f stop=\u505c look=\u770b\u5411\u4ed6 jump=\u8df3 inv=\u62a5\u80cc\u5305`;
+const SYSTEM = `你是 MC AI ${USER}。只输出 JSON：{"say":"≤40字","action":"chat|come|follow|stop|look|jump|inv|build"}
+build=在玩家旁边盖小房`;
+
+const BLOCK_OK = /planks|wood|log|cobble|dirt|stone|brick|wool|glass/;
 
 let following = null;
 let lastAi = 0;
 let pendingAi = false;
+let building = false;
 const mem = [];
 let bot;
 
@@ -29,12 +34,13 @@ function named(msg) {
 
 function parseIntent(message) {
   const m = String(message || "");
-  if (/\u505c\u4e0b|\u505c\u6b62|\u522b\u8ddf|\u522b\u8d70|stop/i.test(m)) return "stop";
-  if (/\u8ddf\u7740|\u8ddf\u6211|follow/i.test(m)) return "follow";
-  if (/\u8fc7\u6765|\u6765\u8fd9|\u6765\u6211\u8fd9|come/i.test(m)) return "come";
-  if (/\u770b\u6211|\u770b\u8fd9|look/i.test(m)) return "look";
-  if (/\u8df3/i.test(m)) return "jump";
-  if (/\u80cc\u5305|\u4f60\u6709\u4ec0\u4e48/i.test(m)) return "inv";
+  if (/停下|停止|别跟|别走|stop/i.test(m)) return "stop";
+  if (/跟着|跟我|follow/i.test(m)) return "follow";
+  if (/过来|来这|来我这|come/i.test(m)) return "come";
+  if (/看我|看这|look/i.test(m)) return "look";
+  if (/跳/i.test(m) && !/跳过/.test(m)) return "jump";
+  if (/背包|你有什么/i.test(m)) return "inv";
+  if (/建房|盖房|建个房|建屋|建房子|build/i.test(m)) return "build";
   return null;
 }
 
@@ -50,9 +56,9 @@ function setupMove() {
 
 function walkTo(playerName, follow) {
   const p = playerEnt(playerName);
-  if (!p) { chat("\u627e\u4e0d\u5230\u4f60"); return; }
+  if (!p) { chat("找不到你"); return; }
   const d = bot.entity.position.distanceTo(p.position);
-  if (d > 72) { chat("\u592a\u8fdc\u4e86"); return; }
+  if (d > 72) { chat("太远了"); return; }
   following = follow ? playerName : null;
   setupMove();
   bot.pathfinder.setGoal(new goals.GoalFollow(p, follow ? 2.5 : 1.8), follow);
@@ -76,17 +82,105 @@ function jumpOnce() {
 
 function invSay() {
   const items = bot.inventory.items();
-  if (!items.length) { chat("\u80cc\u5305\u662f\u7a7a\u7684"); return; }
+  if (!items.length) { chat("背包是空的"); return; }
   chat(items.slice(0, 5).map((i) => i.name.replace("minecraft:", "") + i.count).join(","));
+}
+
+function countBlocks() {
+  return bot.inventory.items().reduce((n, i) => n + (BLOCK_OK.test(i.name) ? i.count : 0), 0);
+}
+
+function pickBlock() {
+  return bot.inventory.items().find((i) => BLOCK_OK.test(i.name)) || null;
+}
+
+function houseOffsets() {
+  const list = [];
+  for (let x = 0; x <= 4; x++) {
+    for (let z = 0; z <= 4; z++) list.push(new Vec3(x, 0, z));
+  }
+  for (let y = 1; y <= 2; y++) {
+    for (let x = 0; x <= 4; x++) {
+      for (let z = 0; z <= 4; z++) {
+        const wall = x === 0 || x === 4 || z === 0 || z === 4;
+        const door = y <= 2 && x === 2 && z === 0;
+        if (wall && !door) list.push(new Vec3(x, y, z));
+      }
+    }
+  }
+  for (let x = 0; x <= 4; x++) {
+    for (let z = 0; z <= 4; z++) list.push(new Vec3(x, 3, z));
+  }
+  return list;
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+async function placeAt(pos) {
+  const cur = bot.blockAt(pos);
+  if (cur && cur.name !== "air" && cur.boundingBox !== "empty") return true;
+  const item = pickBlock();
+  if (!item) return false;
+  try { await bot.equip(item, "hand"); } catch (e) { return false; }
+
+  const faces = [
+    [0, -1, 0], [0, 1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]
+  ];
+  for (const [fx, fy, fz] of faces) {
+    const ref = bot.blockAt(pos.offset(fx, fy, fz));
+    if (!ref || ref.name === "air" || ref.boundingBox === "empty") continue;
+    try {
+      await bot.placeBlock(ref, new Vec3(-fx, -fy, -fz));
+      return true;
+    } catch (e) {}
+  }
+  return false;
+}
+
+async function buildHouse(username) {
+  if (building) { chat("正在盖"); return; }
+  const p = playerEnt(username);
+  if (!p) { chat("找不到你"); return; }
+  if (countBlocks() < 28) {
+    chat("方块不够 28 个，先给我木板或圆石");
+    return;
+  }
+  building = true;
+  following = null;
+  const origin = p.position.offset(3, 0, 3).floored();
+  origin.y = Math.floor(p.position.y);
+  chat("开始盖房");
+  try {
+    setupMove();
+    await bot.pathfinder.goto(new goals.GoalNear(origin.x + 2, origin.y, origin.z + 2, 3));
+    for (const off of houseOffsets()) {
+      if (!building) break;
+      if (countBlocks() < 1) { chat("方块用完了"); break; }
+      const pos = origin.plus(off);
+      await bot.pathfinder.goto(new goals.GoalNear(pos.x, pos.y, pos.z, 3)).catch(() => {});
+      await placeAt(pos);
+      await sleep(180);
+    }
+    chat("房子盖好了");
+  } catch (e) {
+    chat("盖不了");
+    console.error("build", e.message || e);
+  } finally {
+    building = false;
+    bot.pathfinder.setGoal(null);
+  }
 }
 
 function doAction(action, username) {
   if (action === "come") walkTo(username, false);
   else if (action === "follow") walkTo(username, true);
-  else if (action === "stop") stopWalk();
+  else if (action === "stop") { building = false; stopWalk(); }
   else if (action === "look") lookAt(username);
   else if (action === "jump") jumpOnce();
   else if (action === "inv") invSay();
+  else if (action === "build") buildHouse(username).catch(() => {});
 }
 
 async function think(username, message) {
@@ -133,7 +227,7 @@ async function handle(username, message) {
 
   if (intent) {
     doAction(intent, username);
-    const quick = { come: "\u6765\u4e86", follow: "\u8ddf\u4f60", stop: "\u505c\u4e86", look: "\u5728\u770b", jump: "\u8df3", inv: "" };
+    const quick = { come: "来了", follow: "跟你", stop: "停了", look: "在看", jump: "跳", build: "" };
     if (quick[intent]) chat(quick[intent]);
   }
 
@@ -167,7 +261,7 @@ bot.loadPlugin(pathfinder);
 
 bot.once("spawn", () => {
   console.log("AI online", USER, HOST + ":" + PORT);
-  chat("\u5728");
+  chat("在，可说建房");
 });
 
 bot.on("chat", (username, message) => {

@@ -1,11 +1,10 @@
 # AI 玩家
 
-速度：「过来 / 跟着我 / 停」当帧执行，不等模型。模型 4 秒超时，2.5 秒限流，最多 80 token。
-能力：走到你身边、跟随、停、看你、跳一下、报背包；被叫名才闲聊。
+公屏说：过来 / 跟着我 / 停 / 看我 / 跳 / 背包 / **建房**
+
+建房：在你旁边盖 5×5 小屋（地板+墙+屋顶+门洞）。背包至少 28 个木板/圆石/土/石头等。
+可以先 `/give AiQing planks 64`（1.8 名称）再说建房。说「停」会中断建造。
 
 ```bash
-cd ai-player
-cp .env.example .env   # 填 AI_API_KEY
-npm install
-set -a && source .env && set +a && node index.mjs
+cd ai-player && git pull && node index.mjs
 ```
