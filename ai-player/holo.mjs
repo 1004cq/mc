@@ -2,7 +2,7 @@ let text = "AI";
 let lastCmd = 0;
 
 function safe(s) {
-  return String(s || "AI").replace(/["\\]/g, "").slice(0, 16);
+  return String(s || "AI").replace(/["\\]/g, "").slice(0, 24);
 }
 
 export function setHolo(next) {
@@ -12,7 +12,7 @@ export function setHolo(next) {
 export function tickHolo(bot) {
   if (!bot.entity) return;
   const now = Date.now();
-  if (now - lastCmd < 400) return;
+  if (now - lastCmd < 350) return;
   lastCmd = now;
   const p = bot.entity.position.offset(0, 2.15, 0);
   const x = p.x.toFixed(2);
