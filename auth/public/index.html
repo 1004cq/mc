@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=0">
+<title>登录 - mc.cq.je</title>
+<style>
+body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+font-family:-apple-system,sans-serif;background:#1a1a1a;color:#eee}
+form{width:min(360px,92vw);background:#222;padding:24px;border-radius:16px}
+h1{margin:0 0 8px;font-size:22px}
+p{margin:0 0 16px;color:#aaa;font-size:14px}
+input{width:100%;box-sizing:border-box;margin:0 0 10px;padding:12px;border-radius:10px;border:0;background:#111;color:#fff}
+button{width:100%;padding:12px;border:0;border-radius:10px;background:#3d8;color:#111;font-weight:700}
+.alt{margin-top:12px;text-align:center}
+a{color:#8db}
+#msg{color:#f88;min-height:20px;font-size:14px}
+</style>
+</head>
+<body>
+<form id="f">
+<h1>登录</h1>
+<p>用注册过的名字进游戏，不要每次换名。</p>
+<div id="msg"></div>
+<input name="user" placeholder="用户名（字母数字下划线）" autocomplete="username" required>
+<input name="pass" type="password" placeholder="密码" autocomplete="current-password" required>
+<button type="submit">登录并进游戏</button>
+<div class="alt"><a href="/register.html">没有账号？注册</a></div>
+</form>
+<script>
+const msg = document.getElementById("msg");
+fetch("/api/me").then(r=>r.json()).then(d=>{
+  if(d.ok) location.href = "/?autologin=1";
+});
+document.getElementById("f").onsubmit = async (e)=>{
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const res = await fetch("/api/login", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({ user: fd.get("user"), pass: fd.get("pass") })
+  });
+  const d = await res.json();
+  if(!d.ok){ msg.textContent = d.msg || "登录失败"; return; }
+  localStorage.setItem("mc_user", d.user);
+  location.href = d.game + (d.game.includes("?") ? "&" : "?") + "user=" + encodeURIComponent(d.user);
+};
+</script>
+</body>
+</html>
