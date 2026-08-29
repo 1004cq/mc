@@ -1,7 +1,6 @@
 /**
- * Eaglercraft 手机圆形摇杆
- * 迭在游戏页上，把圆形方向转成 W/A/S/D 键盘事件。
- * 不是 Three.js，不要和 playerMove.js 混用。
+ * Eaglercraft 手机控制：左侧触摸位置出现圆形摇杆走路，右侧滑屏转头。
+ * 没有跳跃键。不是 Three.js。
  */
 (function () {
   if (window.__mcJoy) return;
@@ -11,19 +10,22 @@
     a: { key: "a", code: "KeyA", keyCode: 65 },
     s: { key: "s", code: "KeyS", keyCode: 83 },
     d: { key: "d", code: "KeyD", keyCode: 68 },
-    shift: { key: "Shift", code: "ShiftLeft", keyCode: 16 },
-    space: { key: " ", code: "Space", keyCode: 32 }
+    shift: { key: "Shift", code: "ShiftLeft", keyCode: 16 }
   };
+
+  var RADIUS = 52;
+  var DEAD = 0.16;
+  var SPRINT = 0.86;
+  var LOOK_SENS = 1.8;
+  var LEFT_RATIO = 0.46;
 
   var held = {};
   var stick = { x: 0, y: 0 };
-  var dragging = false;
-  var pointerId = null;
-  var RADIUS = 40;
-  var DEAD = 0.18;
-  var SPRINT = 0.82;
+  var moveId = null;
+  var lookId = null;
+  var lastLook = null;
 
-  function fire(type, def) {
+  function fireKey(type, def) {
     var ev = new KeyboardEvent(type, {
       key: def.key,
       code: def.code,
@@ -35,32 +37,65 @@
     try { Object.defineProperty(ev, "keyCode", { get: function () { return def.keyCode; } }); } catch (e) {}
     window.dispatchEvent(ev);
     document.dispatchEvent(ev);
+    var c = document.querySelector("canvas");
+    if (c) c.dispatchEvent(ev);
   }
 
   function setKey(name, on) {
     if (!!held[name] === !!on) return;
     held[name] = on;
-    fire(on ? "keydown" : "keyup", KEYS[name]);
+    fireKey(on ? "keydown" : "keyup", KEYS[name]);
+  }
+
+  function releaseMoveKeys() {
+    setKey("w", false);
+    setKey("a", false);
+    setKey("s", false);
+    setKey("d", false);
+    setKey("shift", false);
   }
 
   function applyStick() {
-    var x = stick.x;
-    var y = stick.y;
-    var mag = Math.hypot(x, y);
+    var mag = Math.hypot(stick.x, stick.y);
     if (mag < DEAD) {
-      setKey("w", false);
-      setKey("a", false);
-      setKey("s", false);
-      setKey("d", false);
-      setKey("shift", false);
+      releaseMoveKeys();
       return;
     }
-    // 圆形 8 向：y 向上为前（W）
-    setKey("w", y < -0.32);
-    setKey("s", y > 0.32);
-    setKey("a", x < -0.32);
-    setKey("d", x > 0.32);
+    setKey("w", stick.y < -0.28);
+    setKey("s", stick.y > 0.28);
+    setKey("a", stick.x < -0.28);
+    setKey("d", stick.x > 0.28);
     setKey("shift", mag >= SPRINT);
+  }
+
+  var style = document.createElement("style");
+  style.textContent =
+    "#mc-joy{position:fixed;width:128px;height:128px;margin:-64px 0 0 -64px;" +
+    "border-radius:50%;background:rgba(255,255,255,.10);" +
+    "border:2px solid rgba(255,255,255,.32);z-index:999999;" +
+    "pointer-events:none;display:none;touch-action:none}" +
+    "#mc-joy-knob{position:absolute;left:50%;top:50%;width:58px;height:58px;" +
+    "margin:-29px 0 0 -29px;border-radius:50%;background:rgba(255,255,255,.48)}";
+  document.documentElement.appendChild(style);
+
+  var joy = document.createElement("div");
+  joy.id = "mc-joy";
+  joy.innerHTML = '<div id="mc-joy-knob"></div>';
+  document.documentElement.appendChild(joy);
+  var knob = joy.firstChild;
+
+  function showJoy(x, y) {
+    joy.style.display = "block";
+    joy.style.left = x + "px";
+    joy.style.top = y + "px";
+  }
+
+  function hideJoy() {
+    joy.style.display = "none";
+    knob.style.transform = "translate(0,0)";
+    stick.x = 0;
+    stick.y = 0;
+    releaseMoveKeys();
   }
 
   function setKnob(dx, dy) {
@@ -84,89 +119,74 @@
     applyStick();
   }
 
-  var wrap = document.createElement("div");
-  wrap.id = "mc-joy-wrap";
-  wrap.innerHTML =
-    '<div id="mc-joy"><div id="mc-joy-knob"></div></div>' +
-    '<button type="button" id="mc-joy-jump">跳</button>';
-
-  var style = document.createElement("style");
-  style.textContent =
-    "#mc-joy-wrap{position:fixed;left:max(12px,env(safe-area-inset-left));" +
-    "bottom:max(16px,env(safe-area-inset-bottom));z-index:999999;" +
-    "display:flex;align-items:flex-end;gap:14px;pointer-events:none}" +
-    "#mc-joy{width:132px;height:132px;border-radius:50%;" +
-    "background:rgba(0,0,0,.28);border:2px solid rgba(255,255,255,.28);" +
-    "position:relative;pointer-events:auto;touch-action:none}" +
-    "#mc-joy-knob{position:absolute;left:50%;top:50%;width:58px;height:58px;" +
-    "margin:-29px 0 0 -29px;border-radius:50%;background:rgba(255,255,255,.42);" +
-    "pointer-events:none}" +
-    "#mc-joy-jump{pointer-events:auto;width:56px;height:56px;border-radius:50%;" +
-    "border:2px solid rgba(255,255,255,.35);background:rgba(0,0,0,.32);" +
-    "color:#fff;font-size:16px}";
-
-  document.documentElement.appendChild(style);
-  document.documentElement.appendChild(wrap);
-
-  var joy = document.getElementById("mc-joy");
-  var knob = document.getElementById("mc-joy-knob");
-  var jump = document.getElementById("mc-joy-jump");
-
-  function localXY(e) {
-    var r = joy.getBoundingClientRect();
-    return {
-      x: e.clientX - (r.left + r.width / 2),
-      y: e.clientY - (r.top + r.height / 2)
-    };
+  function fireLook(mx, my) {
+    mx *= LOOK_SENS;
+    my *= LOOK_SENS;
+    var opts = { bubbles: true, cancelable: true, clientX: 0, clientY: 0 };
+    var ev = new MouseEvent("mousemove", opts);
+    try {
+      Object.defineProperty(ev, "movementX", { get: function () { return mx; } });
+      Object.defineProperty(ev, "movementY", { get: function () { return my; } });
+    } catch (e) {}
+    window.dispatchEvent(ev);
+    document.dispatchEvent(ev);
+    var c = document.querySelector("canvas");
+    if (c) c.dispatchEvent(ev);
   }
 
-  joy.addEventListener("pointerdown", function (e) {
-    dragging = true;
-    pointerId = e.pointerId;
-    try { joy.setPointerCapture(e.pointerId); } catch (err) {}
-    var p = localXY(e);
-    setKnob(p.x, p.y);
-    e.preventDefault();
-    e.stopPropagation();
-  });
-
-  joy.addEventListener("pointermove", function (e) {
-    if (!dragging || e.pointerId !== pointerId) return;
-    var p = localXY(e);
-    setKnob(p.x, p.y);
-    e.preventDefault();
-    e.stopPropagation();
-  });
-
-  function endDrag(e) {
-    if (!dragging) return;
-    if (e && pointerId != null && e.pointerId !== pointerId) return;
-    dragging = false;
-    pointerId = null;
-    setKnob(0, 0);
+  function onDown(e) {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    var x = e.clientX;
+    var y = e.clientY;
+    if (moveId == null && x < window.innerWidth * LEFT_RATIO) {
+      moveId = e.pointerId;
+      showJoy(x, y);
+      setKnob(0, 0);
+      e.preventDefault();
+      return;
+    }
+    if (lookId == null && moveId !== e.pointerId) {
+      lookId = e.pointerId;
+      lastLook = { x: x, y: y };
+      e.preventDefault();
+    }
   }
 
-  joy.addEventListener("pointerup", endDrag);
-  joy.addEventListener("pointercancel", endDrag);
-
-  function jumpOn(e) {
-    setKey("space", true);
-    e.preventDefault();
-    e.stopPropagation();
+  function onMove(e) {
+    if (e.pointerId === moveId) {
+      var r = joy.getBoundingClientRect();
+      setKnob(e.clientX - (r.left + r.width / 2), e.clientY - (r.top + r.height / 2));
+      e.preventDefault();
+      return;
+    }
+    if (e.pointerId === lookId && lastLook) {
+      fireLook(e.clientX - lastLook.x, e.clientY - lastLook.y);
+      lastLook = { x: e.clientX, y: e.clientY };
+      e.preventDefault();
+    }
   }
-  function jumpOff(e) {
-    setKey("space", false);
-    e.preventDefault();
-    e.stopPropagation();
-  }
-  jump.addEventListener("pointerdown", jumpOn);
-  jump.addEventListener("pointerup", jumpOff);
-  jump.addEventListener("pointercancel", jumpOff);
 
+  function onUp(e) {
+    if (e.pointerId === moveId) {
+      moveId = null;
+      hideJoy();
+    }
+    if (e.pointerId === lookId) {
+      lookId = null;
+      lastLook = null;
+    }
+  }
+
+  window.addEventListener("pointerdown", onDown, { passive: false });
+  window.addEventListener("pointermove", onMove, { passive: false });
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onUp);
   window.addEventListener("blur", function () {
-    endDrag();
-    setKey("space", false);
+    moveId = null;
+    lookId = null;
+    lastLook = null;
+    hideJoy();
   });
 
-  window.__mcJoy = { stick: stick, setKey: setKey };
+  window.__mcJoy = { stick: stick };
 })();
