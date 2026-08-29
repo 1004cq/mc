@@ -21,12 +21,21 @@ let following = null;
 let lastAi = 0;
 let pendingAi = false;
 let building = false;
+let holoTimer = null;
 const mem = [];
 let bot;
 
+function statusHolo() {
+  return building ? "盖房中" : following ? "跟随中" : "空闲";
+}
+
 function chat(text) {
   if (!text) return;
-  try { bot.chat(String(text).slice(0, 40)); } catch (e) {}
+  const t = String(text).slice(0, 40);
+  try { bot.chat(t); } catch (e) {}
+  setHolo(t);
+  clearTimeout(holoTimer);
+  holoTimer = setTimeout(() => setHolo(statusHolo()), 4000);
 }
 
 function parseIntent(message) {
@@ -70,15 +79,11 @@ function walkTo(playerName, follow) {
   const d = bot.entity.position.distanceTo(p.position);
   if (d > 72) { chat("太远了"); return; }
   following = follow ? playerName : null;
-  setHolo(follow ? "跟随中" : "过来");
   setupMove();
   bot.pathfinder.setGoal(new goals.GoalFollow(p, follow ? 2.5 : 1.8), follow);
   if (!follow) {
     setTimeout(() => {
-      if (!following) {
-        bot.pathfinder.setGoal(null);
-        setHolo("空闲");
-      }
+      if (!following) bot.pathfinder.setGoal(null);
     }, 8000);
   }
 }
@@ -86,7 +91,6 @@ function walkTo(playerName, follow) {
 function stopWalk() {
   following = null;
   building = false;
-  setHolo("空闲");
   try { bot.pathfinder.setGoal(null); } catch (e) {}
   bot.clearControlStates();
 }
@@ -168,7 +172,6 @@ async function buildHouse(username) {
     return;
   }
   building = true;
-  setHolo("盖房中");
   const origin = p.position.offset(3, 0, 3).floored();
   origin.y = Math.floor(p.position.y);
   chat("开始盖房");
@@ -189,7 +192,6 @@ async function buildHouse(username) {
     console.error("build", e.message || e);
   } finally {
     building = false;
-    setHolo("空闲");
     bot.pathfinder.setGoal(null);
   }
 }
