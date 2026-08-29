@@ -1,6 +1,6 @@
 import http from "http";
 
-export function startChatRelay(bot, port) {
+export function startChatRelay(bot, onCommand, port) {
   const p = Number(port || process.env.CHAT_PORT || 3101);
   const srv = http.createServer((req, res) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
@@ -21,6 +21,9 @@ export function startChatRelay(bot, port) {
         bot.chat("/tellraw @a {\"text\":\"<" + user + "> " + text + "\"}");
       } catch (e) {
         try { bot.chat("[" + user + "] " + text); } catch (e2) {}
+      }
+      if (typeof onCommand === "function") {
+        Promise.resolve(onCommand(user, text)).catch((err) => console.error("cmd", err));
       }
       res.writeHead(200); res.end("ok");
     });
