@@ -1,0 +1,16 @@
+# 编译产物与临时目录（勿提交）
+web/js/classes.js
+web/js/assets.epk
+web/js/lang/
+web/js/*.html
+!web/js/index.html
+!web/js/README.md
+!web/js/.gitignore
+
+web/wasm/*
+!web/wasm/index.html
+!web/wasm/README.md
+!web/wasm/.gitignore
+
+EaglercraftX-1.8-workspace/
+web/serve-launcher.py

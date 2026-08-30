@@ -1,0 +1,3 @@
+[submodule "eaglerx"]
+	path = eaglerx
+	url = https://github.com/Eaglercraft-Archive/EaglercraftX-1.8-workspace.git
