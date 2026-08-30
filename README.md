@@ -13,6 +13,8 @@
 
 本仓库 **main** 已含合并版启动器。`git pull` **不会**自带 `classes.js` 等大文件，须本地编译后部署。
 
+**现网脚本以线上为准**：`cn-chat.js`、`joystick-eagler.js`、`remember-user.js` 在未确认前不要用 deploy 覆盖；默认 `deploy-server.sh` 只更新启动页。
+
 ---
 
 ## 快速上线：只部署启动页（不编译）

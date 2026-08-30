@@ -14,6 +14,8 @@ usage() {
   WEB_ROOT          网站静态根目录（默认 /var/www/mc/web）
   LAUNCHER_AT_ROOT  0=启动页同步到 WEB_ROOT/launcher/（推荐，不覆盖根目录游戏 index.html）
                     1=启动页文件放到 WEB_ROOT 根（会覆盖同名 index.html，慎用）
+  INCLUDE_WEB_SCRIPTS 0=不同步 cn-chat.js / joystick-eagler.js / remember-user.js（默认，避免覆盖现网较新版本）
+                      1=从仓库覆盖上述三个脚本到 WEB_ROOT
 
 不会删除 WEB_ROOT 下已有的 classes.js、play/、index.html 等 Docker 游戏文件。
 仅当 web/js 已编译（存在 classes.js）时才同步 /js/；
@@ -54,13 +56,18 @@ cat > "$ROOT/web/launcher/config.json" <<EOF
 }
 EOF
 
-echo "==> 同步站点脚本（中文聊天 / 摇杆 / 记住用户名）"
-for f in cn-chat.js joystick-eagler.js remember-user.js; do
-  if [[ -f "$ROOT/web/$f" ]]; then
-    cp "$ROOT/web/$f" "$WEB_ROOT/$f"
-    echo "    $f"
-  fi
-done
+if [[ "${INCLUDE_WEB_SCRIPTS:-0}" == "1" ]]; then
+  echo "==> 同步站点脚本（中文聊天 / 摇杆 / 记住用户名）"
+  for f in cn-chat.js joystick-eagler.js remember-user.js; do
+    if [[ -f "$ROOT/web/$f" ]]; then
+      cp "$ROOT/web/$f" "$WEB_ROOT/$f"
+      echo "    $f"
+    fi
+  done
+else
+  echo "==> 跳过站点脚本（cn-chat.js / joystick-eagler.js / remember-user.js；现网以线上为准）"
+  echo "    若确需从仓库覆盖，请设置 INCLUDE_WEB_SCRIPTS=1"
+fi
 
 sync_dir() {
   local src="$1"
