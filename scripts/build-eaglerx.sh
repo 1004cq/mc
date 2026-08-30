@@ -85,10 +85,15 @@ deploy_dir() {
   fi
   echo "==> 复制 $label -> $dst"
   mkdir -p "$dst"
-  rsync -a --delete \
-    --exclude='.gitignore' \
-    --exclude='README.md' \
-    "$src/" "$dst/"
+  if command -v rsync >/dev/null 2>&1; then
+    rsync -a --delete \
+      --exclude='.gitignore' \
+      --exclude='README.md' \
+      "$src/" "$dst/"
+  else
+    find "$dst" -mindepth 1 -maxdepth 1 ! -name 'README.md' ! -name '.gitignore' -exec rm -rf {} + 2>/dev/null || true
+    cp -a "$src"/. "$dst"/
+  fi
 }
 
 if [[ "$BUILD_JS" -eq 1 ]]; then

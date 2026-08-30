@@ -10,17 +10,20 @@
   <body>
     <main class="wrap">
       <h1>网页版 Minecraft 1.8</h1>
-      <p class="sub">一个域名、两套 1.8 客户端，连同一台生存服。请手动选择版本，本页不会自动跳转。</p>
+      <p class="sub">一个域名、两套 1.8 客户端，连同一台服。请手动选择版本，本页不会自动跳转。</p>
 
-      <nav class="actions">
-        <a class="btn" href="../js/">普通版（推荐）</a>
-        <a class="btn secondary" href="../wasm/">高性能版 WASM</a>
+      <nav class="actions" id="actions">
+        <a class="btn" id="btn-js" href="/play/">普通版（推荐）</a>
+        <span class="btn disabled" id="btn-wasm-off">高性能版 WASM（暂未部署）</span>
+        <a class="btn secondary hidden" id="btn-wasm" href="/wasm/">高性能版 WASM</a>
       </nav>
 
       <section class="notes">
-        <p>iPad / 手机请用普通版。电脑上的 Chrome 可以再试高性能版 WASM。</p>
-        <p>默认服务器已是本服（CQ 生存：<code>wss://mc.cq.je</code>）。也可以打开 play.mc.js.cool/1.8，在多人游戏里手动填写 <code>wss://mc.cq.je</code>。</p>
+        <p><strong>iPad / 手机请用普通版。</strong>电脑 Chrome 可试高性能版 WASM（需先编译部署）。</p>
+        <p id="server-note">默认多人服务器：<code id="server-addr">wss://mc.cq.je/</code>（<span id="server-name">CQ 创造服</span>）。现网已核对：网关在同域根路径。</p>
+        <p id="build-note" class="hidden">当前 <code>/js/</code> 尚未编译部署，普通版按钮暂时指向已有游戏页 <code>/play/</code>。</p>
       </section>
     </main>
+    <script src="launcher.js"></script>
   </body>
 </html>

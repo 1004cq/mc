@@ -12,7 +12,9 @@
 		<meta property="og:description" content="mc.cq.je 网页版 Minecraft 1.8 高性能 WASM 客户端" />
 		<meta property="og:image" content="favicon.png" />
 		<link type="image/png" rel="shortcut icon" href="favicon.png" />
+		<script src="/remember-user.js"></script>
 		<script type="text/javascript" src="bootstrap.js"></script>
+		<script type="text/javascript" src="/joystick-eagler.js"></script>
 		<script type="text/javascript" src="/cn-chat.js"></script>
 		<script type="text/javascript">
 			"use strict";
@@ -20,36 +22,34 @@
 				if(window.location.href.indexOf("file:") === 0) {
 					alert("请通过 HTTP 访问本页，不要直接用 file:// 打开");
 				}else {
-					
-					// %%%%%%%%% launch options %%%%%%%%%%%%
-					
+					var serverAddr = "wss://mc.cq.je/";
 					var relayId = Math.floor(Math.random() * 3);
 					window.eaglercraftXOpts = {
 						demoMode: false,
 						container: "game_frame",
 						assetsURI: "assets.epw",
-						worldsDB: "worlds",
+						lang: "zh_CN",
+						worldsDB: "mc_cq_worlds_v2",
+						localStorageNamespace: "mc_cq_creative_v2",
 						servers: [
-							{ addr: "wss://mc.cq.je", name: "CQ 生存" }
+							{ addr: serverAddr, name: "CQ 创造服", hideAddr: false }
 						],
+						joinServer: serverAddr,
 						relays: [
 							{ addr: "wss://relay.deev.is/", comment: "lax1dude relay #1", primary: relayId == 0 },
 							{ addr: "wss://relay.lax1dude.net/", comment: "lax1dude relay #2", primary: relayId == 1 },
 							{ addr: "wss://relay.shhnowisnottheti.me/", comment: "ayunami relay #1", primary: relayId == 2 }
 						]
 					};
-					
-					// %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-					
+
 					var q = window.location.search;
 					if((typeof q === "string") && q[0] === "?" && (typeof window.URLSearchParams !== "undefined")) {
 						q = new window.URLSearchParams(q);
 						var s = q.get("server");
 						if(s) window.eaglercraftXOpts.joinServer = s;
 					}
-					
+
 					main();
-					
 				}
 			});
 		</script>

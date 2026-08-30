@@ -1,0 +1,17 @@
+{
+  "js": {
+    "url": "/js/",
+    "fallbackUrl": "/play/",
+    "label": "普通版（推荐）",
+    "compiled": false
+  },
+  "wasm": {
+    "url": "/wasm/",
+    "label": "高性能版 WASM",
+    "available": false
+  },
+  "server": {
+    "name": "CQ 创造服",
+    "address": "wss://mc.cq.je/"
+  }
+}

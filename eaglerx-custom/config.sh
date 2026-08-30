@@ -10,6 +10,6 @@ export MC_FORK_VERSION="1.8"
 export MC_FORK_VENDOR="mc.cq.je"
 export MC_FORK_URL="https://mc.cq.je"
 
-# 默认多人服务器（与 web/launcher/servers.json 一致）
-export MC_SERVER_NAME="CQ 生存"
-export MC_SERVER_ADDR="wss://mc.cq.je"
+# 默认多人服务器（与 web/launcher/servers.json 一致；现网核对为同域根路径 wss）
+export MC_SERVER_NAME="CQ 创造服"
+export MC_SERVER_ADDR="wss://mc.cq.je/"

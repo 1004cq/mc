@@ -1,119 +1,101 @@
 # mc
 
-网页版我的世界联机部署（EaglercraftX 1.8）
+网页版 Minecraft 1.8 联机（mc.cq.je）
 
 - 游戏网址：https://mc.cq.je
-- 启动页：`web/launcher/`（普通版 / WASM 两个入口）
-- 手机圆形摇杆：`web/joystick-eagler.js`
-- 接法说明：`web/README-摇杆.md`
+- 启动页：`web/launcher/`（普通版 JS / 高性能 WASM）
+- 源码工作区：Git 子模块 `eaglerx/`（[EaglercraftX-1.8-workspace](https://github.com/Eaglercraft-Archive/EaglercraftX-1.8-workspace)）
+- 官方源码参考：https://gitflic.ru/project/lax1dude/eaglercraft-1_8
+- 中文聊天 / 摇杆：`web/cn-chat.js`、`web/joystick-eagler.js`
 
-## 启动器
-
-一个域名、两套 **Minecraft 1.8** 网页客户端，连同一台服。玩家打开根路径先看启动页，再手动选版本（不自动跳转）。
-
-| 路径 | 目录 | 说明 |
-| --- | --- | --- |
-| `/` | `web/launcher/` | 中文启动页 |
-| `/js/` | `web/js/` | 普通 JS 客户端（推荐；iPad/手机） |
-| `/wasm/` | `web/wasm/` | 高性能 WASM 客户端（电脑 Chrome 可试） |
-
-默认服：`web/launcher/servers.json` → CQ 生存 / `wss://mc.cq.je`
-
-**说明**：play.mc.js.cool、eaglercraft.com 等在线地址是**已编译成品**，仅作运行效果对照；**不要**从它们下载 `classes.js` 推进本仓库。客户端二改与编译只基于子模块 `eaglerx/`（EaglercraftX-1.8-workspace）。
-
-### Nginx 示例
-
-`/api/mc-chat` 与游戏 **WebSocket（wss）** 保持现网原样。
-
-```nginx
-location = / {
-    alias /var/www/mc/web/launcher/index.html;
-}
-location / {
-    root /var/www/mc/web/launcher;
-    try_files $uri $uri/ /index.html;
-}
-location /js/ { alias /var/www/mc/web/js/; }
-location /wasm/ { alias /var/www/mc/web/wasm/; }
-location = /cn-chat.js { alias /var/www/mc/web/cn-chat.js; }
-location = /joystick-eagler.js { alias /var/www/mc/web/joystick-eagler.js; }
-location = /remember-user.js { alias /var/www/mc/web/remember-user.js; }
-```
-
-WASM 需设置 `.wasm` 的 Content-Type 为 `application/wasm`（详见下方编译部署）。
-
-### 与屏幕插件、AI 的关系
-
-启动器与 `ai-player/`、屏幕插件互不影响；**不修改** Paper 插件、AI、视距、JVM、世界存档相关配置。
+**重要**：`git pull` 不会自带可玩的完整客户端（`classes.js` 等大文件不进 Git）。必须在服务器上编译后部署。
 
 ---
 
-## 编译 EaglercraftX 1.8 客户端
+## 服务器部署清单
 
-源码在 Git 子模块 **`eaglerx/`**：
+在 **mc.cq.je 服务器**上按顺序执行：
 
 ```bash
-git submodule update --init --recursive
-```
+# 1. 拉取合并版 main
+cd /path/to/mc          # 例如 /opt/mc 或你现有的仓库目录
+git fetch origin
+git checkout main
+git pull origin main
 
-上游：[Eaglercraft-Archive/EaglercraftX-1.8-workspace](https://github.com/Eaglercraft-Archive/EaglercraftX-1.8-workspace)
+# 2. 初始化 EaglercraftX 源码子模块
+git submodule update --init --recursive
+
+# 3. 编译客户端（需要 JDK 17+，首次较慢）
+./scripts/build-eaglerx.sh
+# 若只编普通版：./scripts/build-eaglerx.sh --js-only
+# 若编译失败，仍可部署启动页（普通版按钮会指向已有 /play/）
+
+# 4. 同步到网站目录
+WEB_ROOT=/var/www/mc/web ./scripts/deploy-server.sh
+```
 
 ### 前置要求
 
-- **JDK 17 或更高**（workspace README 要求）
-- 网络（首次 `./gradlew` 会拉 Gradle 与 Maven 依赖）
-- WASM 完整构建若需 loader，可能还要 Emscripten（见 `eaglerx/README.md`）；日常 Web 部署以 `makeMainWasmClientBundle` 产出为准
-
-### 一键编译并部署到 web/js、web/wasm
-
-```bash
-./scripts/build-eaglerx.sh
-```
-
-脚本会：
-
-1. 执行 `./scripts/apply-eaglerx-custom.sh`，把 `eaglerx-custom/` 二改覆盖到子模块
-2. 编译 JS：`./gradlew target_teavm_javascript:makeMainOfflineDownload`（等同 `target_teavm_javascript/MakeOfflineDownload.sh`）
-3. 编译 WASM：`./gradlew target_teavm_wasm_gc:makeMainWasmClientBundle`（等同 `target_teavm_wasm_gc/MakeWASMClientBundle.sh`）
-4. 复制产物到 `web/js/`、`web/wasm/`（**不提交**大文件）
-
-只编一种客户端：
-
-```bash
-./scripts/build-eaglerx.sh --js-only
-./scripts/build-eaglerx.sh --wasm-only
-```
-
-### 编译产物位置
-
-| 客户端 | Gradle 任务 | 输出目录（子模块内） | 部署到 |
-| --- | --- | --- | --- |
-| 普通 JS | `target_teavm_javascript:makeMainOfflineDownload` | `eaglerx/target_teavm_javascript/javascript/` | `web/js/` → 站点 `/js/` |
-| WASM | `target_teavm_wasm_gc:makeMainWasmClientBundle` | `eaglerx/target_teavm_wasm_gc/javascript_dist/` | `web/wasm/` → 站点 `/wasm/` |
-
-主要文件：`index.html`、`classes.js` + `assets.epk`（JS）或 `bootstrap.js` + `assets.epw`（WASM）等。
-
-### 二改清单（eaglerx-custom/）
-
-在 **`eaglerx-custom/`** 维护，由 `apply-eaglerx-custom.sh` 覆盖到子模块后再编译：
-
-| 项 | 位置 |
+| 项 | 说明 |
 | --- | --- |
-| 默认服务器 `wss://mc.cq.je` | `target_teavm_javascript/javascript/index.html`<br>`target_teavm_wasm_gc/javascript_dist/index.html` |
-| 窗口 / 标签标题 | 同上 HTML + `EaglercraftVersion.java` |
-| 游戏页引入中文聊天 | 同上 HTML：`<script src="/cn-chat.js"></script>` |
+| JDK | **17 或更高**（`java -version` 检查） |
+| Git 子模块 | `eaglerx/` 约几百 MB 源码，首次 `submodule update` 需网络 |
+| 磁盘 | 编译临时文件 + 产物各需数 GB 空间 |
+| 不提交 | 不要把 `classes.js`、`assets.epk`、`assets.epw` push 到 GitHub |
 
-详见 `eaglerx-custom/README.md`。
+### 编译产物目录
 
-### 服务器部署目录
+| 客户端 | Gradle 任务 | 仓库内目录 | 网站路径 |
+| --- | --- | --- | --- |
+| 普通 JS | `target_teavm_javascript:makeMainOfflineDownload` | `web/js/` | `/js/` |
+| WASM | `target_teavm_wasm_gc:makeMainWasmClientBundle` | `web/wasm/` | `/wasm/` |
 
-编译完成后，把以下目录同步到 mc.cq.je（**不要**把 `classes.js`、`assets.epk`、`assets.epw` 等大文件 commit 进 Git）：
+编译脚本：`./scripts/build-eaglerx.sh`（内部调用 `./scripts/apply-eaglerx-custom.sh` 应用二改）
 
-```bash
-rsync -a web/launcher/  服务器:/var/www/mc/web/launcher/
-rsync -a web/js/       服务器:/var/www/mc/web/js/      # 编译后才有完整客户端
-rsync -a web/wasm/     服务器:/var/www/mc/web/wasm/
-rsync -a web/cn-chat.js web/joystick-eagler.js web/remember-user.js  服务器:/var/www/mc/web/
+### 二改内容（eaglerx-custom/）
+
+- 默认多人：**`wss://mc.cq.je/`**（已核对现网 `/play/` 与 `/index.html` 均用同域根路径 WebSocket）
+- 服名：CQ 创造服
+- 游戏页挂载：`/remember-user.js`、`/joystick-eagler.js`、`/cn-chat.js`
+- 窗口标题：CQ 网页版 Minecraft 1.8
+
+**不要**从 play.mc.js.cool、eaglercraft.com 爬成品 `classes.js` 推进仓库。
+
+---
+
+## Nginx 配置要点
+
+在**不破坏**现有 `wss`、`/api/mc-chat`、`/play/`、登录、`/classes.js`（Docker 游戏根文件）的前提下，增加启动器与客户端路径：
+
+```nginx
+# 启动页（站点根；登录 /play /api 等更具体的 location 应写在前面或单独 server）
+location = / {
+    try_files /index.html =404;
+    root /var/www/mc/web;          # deploy-server.sh LAUNCHER_AT_ROOT=1 时 launcher 文件在此
+}
+location /launcher/ {
+    alias /var/www/mc/web/launcher/;
+}
+
+# 编译后的客户端（未编译时可不配 /js/，启动页会回退到 /play/）
+location /js/ {
+    alias /var/www/mc/web/js/;
+}
+location /wasm/ {
+    alias /var/www/mc/web/wasm/;
+}
+
+# 站点脚本（与现网一致，保持可从根路径加载）
+location = /cn-chat.js       { alias /var/www/mc/web/cn-chat.js; }
+location = /joystick-eagler.js { alias /var/www/mc/web/joystick-eagler.js; }
+location = /remember-user.js { alias /var/www/mc/web/remember-user.js; }
+
+# 以下保持现网原样，不要改：
+# - WebSocket 升级（wss://mc.cq.je/ 游戏网关）
+# - /api/mc-chat 中文聊天 HTTP
+# - /play/、/login/、auth 反代
+# - Docker 提供的 /classes.js、/assets.epk 等根路径游戏文件
 ```
 
 ### WASM Content-Type
@@ -126,4 +108,47 @@ location ~* \.wasm$ {
 }
 ```
 
-部分 WASM 构建还需 COOP/COEP 响应头以启用 SharedArrayBuffer；若浏览器控制台报错，按 `eaglerx` 文档调整。
+---
+
+## 编译失败 / 尚未编译时怎么办
+
+| 情况 | 行为 |
+| --- | --- |
+| `web/js/classes.js` 不存在 | `./scripts/deploy-server.sh` **不同步** `/js/`；启动页「普通版」按钮指向已有 **`/play/`**（现网可玩） |
+| `web/wasm/` 未编译 | WASM 按钮显示 **「高性能版 WASM（暂未部署）」**，不可点 |
+| 启动页 | 始终可部署；`config.json` 由 deploy 脚本按编译状态自动生成 |
+
+现网已有 Docker/EaglerX 提供的 `/play/`、`/classes.js` 等**不会被 deploy 脚本删除**。
+
+---
+
+## 启动器路径
+
+| 网站路径 | 仓库目录 | 说明 |
+| --- | --- | --- |
+| `/` | `web/launcher/` | 中文启动页；iPad 用普通版，电脑可试 WASM |
+| `/js/` | `web/js/` | 普通 JS 1.8.8（编译后） |
+| `/wasm/` | `web/wasm/` | WASM 1.8.8（编译后） |
+
+---
+
+## 验收标准
+
+- [ ] GitHub **main** 分支能看到 `web/launcher/`、`eaglerx/` 子模块、编译与部署脚本
+- [ ] `git clone --recurse-submodules` 后能看到 EaglercraftX 源码工作区
+- [ ] 仅 `git pull` **不能**直接玩；执行 `./scripts/build-eaglerx.sh` 并 `deploy-server.sh` 后，「普通版」才指向 `/js/`
+- [ ] 编译前启动页可开，普通版回退 `/play/`，WASM 显示暂未部署
+- [ ] 屏幕墙插件、AI 玩家、中文聊天、摇杆**互不影响**（未改 `ai-player/`、`plugin-screen/`、视距/JVM/存档）
+
+---
+
+## 其他组件
+
+| 目录 | 说明 |
+| --- | --- |
+| `ai-player/` | 大模型 AI 玩家（未改） |
+| `auth/` | 账号登录（`/play/` 使用 `remember-user.js`） |
+| `web/cn-chat.js` | iPad 中文聊天输入框 |
+| `web/joystick-eagler.js` | 手机圆形摇杆 |
+
+详细：`web/launcher/README.md`、`eaglerx-custom/README.md`、`web/js/README.md`、`web/wasm/README.md`
