@@ -1,6 +1,4 @@
-[
-  {
-    "name": "CQ 创造服",
-    "address": "wss://mc.cq.je/"
-  }
-]
+{
+  "name": "CQ 创造服",
+  "address": "wss://mc.cq.je/"
+}

@@ -1,24 +1,13 @@
 # 启动器
 
-玩家打开站点根路径看到中文启动页，手动选版本（**不自动跳转**）。
+## 现网默认行为
 
-- **iPad / 手机**：点「普通版（推荐）」
-- **电脑 Chrome**：编译部署 WASM 后可试「高性能版 WASM」
-
-## 按钮逻辑（config.json）
-
-`scripts/deploy-server.sh` 会根据编译状态写入 `config.json`：
-
-| 条件 | 普通版按钮 | WASM 按钮 |
+| 按钮 | 链接 | 说明 |
 | --- | --- | --- |
-| `web/js/classes.js` 已存在 | `/js/` | — |
-| 未编译 JS | **`/play/`**（现网已有游戏页） | — |
-| `web/wasm/bootstrap.js` 或 `assets.epw` 存在 | — | `/wasm/` |
-| WASM 未编译 | — | **暂未部署**（灰色不可点） |
+| 普通版（推荐） | **`/play/`** | 现网唯一可玩页，默认服 `wss://mc.cq.je/` |
+| 高性能版 WASM | **暂未部署** | 禁用，不跳到 `/wasm/`（404） |
 
-## 默认服务器
-
-已核对现网：`wss://mc.cq.je/`（同域根路径，与 `/play/` 一致）。见 `servers.json`。
+**iPad / 手机请用普通版。**
 
 ## 部署
 
@@ -26,4 +15,14 @@
 WEB_ROOT=/var/www/mc/web ./scripts/deploy-server.sh
 ```
 
-不会删除服务器上 Docker 提供的 `/play/`、`/classes.js` 等现有文件。
+默认同步到 `WEB_ROOT/launcher/`，配合 Nginx `location = / { alias .../launcher/index.html; }`，**不覆盖**根目录原有游戏 `index.html`。
+
+## servers.json
+
+```json
+{ "name": "CQ 创造服", "address": "wss://mc.cq.je/" }
+```
+
+## 编译后自动切换
+
+`deploy-server.sh` 检测 `web/js/classes.js`、`web/wasm/bootstrap.js` 后更新 `config.json`，启动页按钮改为 `/js/`、`/wasm/`。

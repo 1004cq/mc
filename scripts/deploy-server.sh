@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 WEB_ROOT="${WEB_ROOT:-/var/www/mc/web}"
-LAUNCHER_AT_ROOT="${LAUNCHER_AT_ROOT:-1}"
+LAUNCHER_AT_ROOT="${LAUNCHER_AT_ROOT:-0}"
 
 usage() {
   cat <<'EOF'
@@ -12,8 +12,8 @@ usage() {
 
 环境变量:
   WEB_ROOT          网站静态根目录（默认 /var/www/mc/web）
-  LAUNCHER_AT_ROOT  1=启动页文件放到 WEB_ROOT 根（配合 Nginx / → launcher）
-                    0=只同步到 WEB_ROOT/launcher/
+  LAUNCHER_AT_ROOT  0=启动页同步到 WEB_ROOT/launcher/（推荐，不覆盖根目录游戏 index.html）
+                    1=启动页文件放到 WEB_ROOT 根（会覆盖同名 index.html，慎用）
 
 不会删除 WEB_ROOT 下已有的 classes.js、play/、index.html 等 Docker 游戏文件。
 仅当 web/js 已编译（存在 classes.js）时才同步 /js/；
